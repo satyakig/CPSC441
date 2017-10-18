@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.Date;
 import java.net.Socket;
 import java.io.*;
+import java.util.Scanner;
 
 public class UrlCache {
 
@@ -186,6 +187,25 @@ public class UrlCache {
 		System.out.println();
 		for(String key: catalog.keySet()) {
 			System.out.println("URL: " + key + ", Last-Modified: " + catalog.get(key));
+		}
+	}
+
+	//tester for assignment 2 for CPSC 441
+	public void getObject2(String url) throws IOException {
+		socket = new Socket("localhost", 2225);
+		PrintWriter outStream = new PrintWriter(new DataOutputStream(socket.getOutputStream()));
+		InputStream inStream = socket.getInputStream();
+
+		outStream.print(url + "\r\nHost: localhost\r\n\r\n");
+		outStream.flush();
+
+		byte[] bytes = new byte[16*1024];
+		int count;
+		for(int i = 0; (count = inStream.read(bytes)) > 0; i++){
+			String line = new String(bytes);
+			if(i > 0)
+				break;
+			System.out.println(line);
 		}
 	}
 
