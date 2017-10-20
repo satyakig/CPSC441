@@ -99,5 +99,5 @@ public class WebServer extends Thread {
 		server.shutdown();
 		System.out.println("server stopped");
 	}
-	
+
 }
