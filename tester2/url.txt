@@ -1,3 +1,0 @@
-/files/a.pdf
-/files/a.jpg
-/files/a.txt

@@ -104,7 +104,7 @@ public class WorkerThread extends Thread {
                 else{
                     output.write(this.getBadResponse(400).getBytes("US-ASCII"));
                     output.flush();
-                    System.out.println("404 Not Found: " + request);
+                    System.out.println("400 Not Found: " + request);
                 }
             }
 
@@ -126,7 +126,7 @@ public class WorkerThread extends Thread {
 
         if(status == 400)
             response = "HTTP/1.1 400 Bad Request\r\n";
-        else if(status == 404)
+        else
             response = "HTTP/1.1 404 Not Found\r\n";
 
         response += "Date: " + format.format(date) + "\r\n";
