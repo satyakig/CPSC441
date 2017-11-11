@@ -7,13 +7,13 @@ import java.util.TimerTask;
 
 public class TimeoutHandler extends TimerTask {
 
+    int a = 112345;
     public TimeoutHandler() {
 
     }
 
     @Override
     public void run() {
-
+        System.out.println(a);
     }
-
 }

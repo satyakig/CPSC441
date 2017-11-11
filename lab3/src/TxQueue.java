@@ -1,4 +1,3 @@
-
 /**
  * TxQueue Class
  * 
@@ -30,6 +29,7 @@ public class TxQueue {
 	
 	// queue ADT variables to implement a circular array
 	private Segment[] queue = null;
+	private int capacity;
 	private int head = 0;
 	private int tail = -1;
 	private int count = 0;
@@ -38,17 +38,24 @@ public class TxQueue {
     /**
      * Constructor
      * Creates a queue with the given capacity.
-     * @param capacity	The capacity of the queue
+     * @param cap	The capacity of the queue
      */
-	public TxQueue(int capacity) {
+	public TxQueue(int cap) {
 		mutex = new ReentrantLock();
 		
 		notFull = mutex.newCondition();
 		notEmpty = mutex.newCondition();
 		
-		queue = new Segment[capacity];
+		queue = new Segment[cap];
+		capacity = cap;
 	}
-	
+
+	/**
+	 * @return The max capacity of the queue
+	 */
+	public int capacity() {
+		return capacity;
+	}
 	
     /**
      * Returns an array of segments in the queue.

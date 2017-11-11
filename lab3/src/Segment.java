@@ -91,7 +91,7 @@ public class Segment {
      * Creates a segment using the given byte array to reconstruct the segment.
      * It uses the byte array to reconstruct both the header and payload of the segment.
      * 
-     * @param data	a byte array to set the header and payload of the segment
+     * @param bytes	a byte array to set the header and payload of the segment
      */
 	public Segment(byte[] bytes) {
 		setBytes(bytes);

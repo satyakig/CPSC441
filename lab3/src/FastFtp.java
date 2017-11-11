@@ -7,7 +7,6 @@
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.net.SocketException;
 import java.util.Timer;
 import java.net.Socket;
 import java.net.DatagramSocket;
@@ -21,15 +20,15 @@ public class FastFtp {
 	private Socket TCPSocket;
 	private DatagramSocket UDPSocket;
 
-	private int windowSize;
-	private int rtoTimer;
-
-	private String TCPServerName;
+	private String hostName;
 	private int TCPServerPort;
 	private int UDPServerPort;
 
 	private String fileName;
 	private long fileSize;
+
+	private int window;
+	private long delay;
 
 	/**
      * Constructor to initialize the program
@@ -37,18 +36,11 @@ public class FastFtp {
      * @param rtoTimer		The time-out interval for the retransmission timer
      */
 	public FastFtp(int windowSize, int rtoTimer) {
-		this.windowSize = windowSize;
-		this.rtoTimer = rtoTimer;
+		window = windowSize;
+		delay = Long.valueOf(rtoTimer);
 
-		this.que = new TxQueue(this.windowSize);
-		this.timer.schedule(new TimeoutHandler(), this.rtoTimer);
-
-		try {
-			this.UDPSocket = new DatagramSocket();
-		}catch(SocketException e) {
-			System.out.println("Could not open a UDP Socket.\n" + e.getMessage());
-			System.exit(0);
-		}
+		que = new TxQueue(window);
+		timer = new Timer(true);
 	}
 	
 
@@ -61,35 +53,61 @@ public class FastFtp {
      * 5. clean up (cancel timer, interrupt receiving thread, close sockets/files)
      * @param serverName	Name of the remote server
      * @param serverPort	Port number of the remote server
-     * @param fileName		Name of the file to be transferred to the remote server
+     * @param fileN		Name of the file to be transferred to the remote server
      */
-	public void send(String serverName, int serverPort, String fileName) {
+	public void send(String serverName, int serverPort, String fileN) {
 
-		this.TCPServerName = serverName;
-		this.TCPServerPort = serverPort;
-		this.fileName = fileName;
+		hostName = serverName;
+		TCPServerPort = serverPort;
+		fileName = fileN;
 
-		File file = new File(this.fileName);
+		File file = new File(fileName);
 
 		if(!file.exists()){
-			System.out.println(this.fileName + " does not exist!");
+			System.out.println(fileName + " does not exist!");
 			System.exit(0);
 		}
 
 		this.fileSize = file.length();
 
 		try{
-			this.TCPSocket = new Socket(this.TCPServerName, this.TCPServerPort);
-			DataOutputStream outStream = new DataOutputStream(this.TCPSocket.getOutputStream());
-			DataInputStream inpStream = new DataInputStream(this.TCPSocket.getInputStream());
+//			TCPSocket = new Socket(hostName, TCPServerPort);
+//			UDPSocket = new DatagramSocket();
+//
+//			DataOutputStream outStream = new DataOutputStream(TCPSocket.getOutputStream());
+//			DataInputStream inpStream = new DataInputStream(TCPSocket.getInputStream());
+//
+//			outStream.writeUTF(fileName);
+//			outStream.writeLong(fileSize);
+//			outStream.writeInt(UDPSocket.getLocalPort());
+//			outStream.flush();
+//
+//			UDPServerPort = inpStream.readInt();
 
-			outStream.writeUTF(this.fileName);
-			outStream.writeLong(this.fileSize);
-			outStream.writeInt(this.TCPServerPort);
-			outStream.flush();
+			Thread quee = new Thread(new QueueThread(que, new File(fileName)));
+//			Thread sender = new Thread(new SenderThread(UDPSocket, que, hostName, UDPServerPort, timer));
+//			Thread receiver = new Thread(new ReceiverThread(UDPSocket, que, hostName, UDPServerPort, timer));
 
-		}catch(IOException e) {
-			System.out.println("Could not open a TCP connection with server.\n" + e.getMessage());
+			quee.start();
+//			sender.start();
+//			receiver.start();
+
+			quee.join();
+//			sender.join();
+//			receiver.join();
+
+//			TCPSocket.close();
+//			UDPSocket.close();
+
+		}
+//		catch(IOException e) {
+//			System.out.println(e.getMessage());
+//			e.printStackTrace();
+//			System.exit(0);
+//		}
+		catch(InterruptedException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
 			System.exit(0);
 		}
 	}
