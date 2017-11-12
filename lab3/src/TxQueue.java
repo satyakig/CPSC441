@@ -60,7 +60,7 @@ public class TxQueue {
     /**
      * Returns an array of segments in the queue.
      * This array can be used to iterate over the segments in the queue.
-     * @return An array contaning all queue segments
+     * @return An array containing all queue segments
      */
 	public Segment[] toArray() {
 		// prevents others from accessing queue
@@ -105,9 +105,9 @@ public class TxQueue {
 	
     /**
      * Adds a segment at the 'tail' of the queue if there is any space available,
-     * otherwise, the calling process is blokced until space becomes available.
+     * otherwise, the calling process is blocked until space becomes available.
      * @param seg	The segment to be added to the queue
-     * @throws InterruptedException in case the thread excecution is interrupted
+     * @throws InterruptedException in case the thread excution is interrupted
      */
 	public void add(Segment seg) throws InterruptedException {
 		// prevents others from accessing queue
@@ -216,54 +216,4 @@ public class TxQueue {
 			mutex.unlock();
 		}
 	}
-	
-	
-    // A simple test driver
-	public static void main(String[] args) {
-		
-		// a queue with capacity of 10 segments
-		TxQueue q = new TxQueue(10);
-		
-		try {
-			// create the segements with consequitive seq numbers
-			// add the segments to the queue
-			for (int i = 0; i < 10; i++)
-				q.add(new Segment(i));
-
-			// get all segments from the queue
-			Segment[] segments = q.toArray();
-			
-			// iterate over the segments
-			for (int i = 0; i < segments.length; i++)
-				System.out.println(segments[i].getSeqNum());
-			
-			// remove half of the segments from the queue
-			for (int i = 0; i < segments.length / 2; i++)
-				q.remove();
-	
-			// get the lisyt of the remaing segments
-			System.out.print("toArray(): ");
-			segments = q.toArray();
-			System.out.println("length = " + segments.length);
-			
-			// iterate over them and remove as many segments from the queue
-			for (int i = 0; i < segments.length; i++) {
-				System.out.println(segments[i]);
-				q.remove();
-			}
-			
-			// queue should be empty now
-			if (q.isEmpty())
-				System.out.println("queue is empty");
-			
-			System.out.println("Next call to remove would suspend the program");
-			System.out.println("Use Ctrl+C to terminate...");
-			q.remove();
-		}
-		catch (InterruptedException e) {
-			// this is OK
-			System.out.println("Program is interrupted, existing.");
-		}
-	}
-	
 }

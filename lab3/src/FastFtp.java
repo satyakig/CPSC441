@@ -13,9 +13,7 @@ import java.net.DatagramSocket;
 import java.io.File;
 
 public class FastFtp {
-
 	private TxQueue que;
-	private Timer timer;
 
 	private Socket TCPSocket;
 	private DatagramSocket UDPSocket;
@@ -40,7 +38,6 @@ public class FastFtp {
 		delay = Long.valueOf(rtoTimer);
 
 		que = new TxQueue(window);
-		timer = new Timer(true);
 	}
 	
 
@@ -71,41 +68,42 @@ public class FastFtp {
 		this.fileSize = file.length();
 
 		try{
-//			TCPSocket = new Socket(hostName, TCPServerPort);
-//			UDPSocket = new DatagramSocket();
-//
-//			DataOutputStream outStream = new DataOutputStream(TCPSocket.getOutputStream());
-//			DataInputStream inpStream = new DataInputStream(TCPSocket.getInputStream());
-//
-//			outStream.writeUTF(fileName);
-//			outStream.writeLong(fileSize);
-//			outStream.writeInt(UDPSocket.getLocalPort());
-//			outStream.flush();
-//
-//			UDPServerPort = inpStream.readInt();
+			TCPSocket = new Socket(hostName, TCPServerPort);
+			UDPSocket = new DatagramSocket();
 
-			Thread quee = new Thread(new QueueThread(que, new File(fileName)));
-//			Thread sender = new Thread(new SenderThread(UDPSocket, que, hostName, UDPServerPort, timer));
-//			Thread receiver = new Thread(new ReceiverThread(UDPSocket, que, hostName, UDPServerPort, timer));
+			DataOutputStream outStream = new DataOutputStream(TCPSocket.getOutputStream());
+			DataInputStream inpStream = new DataInputStream(TCPSocket.getInputStream());
 
-			quee.start();
-//			sender.start();
-//			receiver.start();
+			outStream.writeUTF(fileName);
+			outStream.writeLong(fileSize);
+			outStream.writeInt(UDPSocket.getLocalPort());
+			outStream.flush();
 
-			quee.join();
-//			sender.join();
-//			receiver.join();
+			UDPServerPort = inpStream.readInt();
+			System.out.println("server - " + serverName + ": " + UDPServerPort + "\n");
 
-//			TCPSocket.close();
-//			UDPSocket.close();
+			ReceiverThread receiverT = new ReceiverThread(UDPSocket, hostName, UDPServerPort, que, delay);
+			SenderThread senderT = new SenderThread(UDPSocket, hostName, UDPServerPort, que, delay, fileName);
 
+			senderT.setReceiver(receiverT);
+			receiverT.setSender(senderT);
+
+			Thread sender = new Thread(senderT);
+			Thread receiver = new Thread(receiverT);
+
+			sender.start();
+			receiver.start();
+
+			sender.join();
+			receiver.join();
+
+			TCPSocket.close();
 		}
-//		catch(IOException e) {
-//			System.out.println(e.getMessage());
-//			e.printStackTrace();
-//			System.exit(0);
-//		}
-		catch(InterruptedException e) {
+		catch(IOException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+			System.exit(0);
+		}catch(InterruptedException e) {
 			System.out.println(e.getMessage());
 			e.printStackTrace();
 			System.exit(0);
@@ -138,6 +136,6 @@ public class FastFtp {
 		System.out.printf("sending file \'%s\' to server...\n", fileName);
 
 		ftp.send(serverName, serverPort, fileName);
-		System.out.println("file transfer completed.");
+		System.out.println("\nfile transfer completed.");
 	}
 }
