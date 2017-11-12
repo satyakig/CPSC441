@@ -1,4 +1,25 @@
+# git ignore file
+
 *.xml
 *.class
-*/out/
-*/.idea/
+
+*/out/*
+*/.idea/*
+
+.idea/
+out/
+
+lab1/.idea/
+lab1/out/
+lab1/*.xml
+lab1/*.class
+
+lab2/.idea/
+lab2/out/
+lab2/*.xml
+lab2/*.class
+
+lab3/.idea/
+lab3/out/
+lab3/*.xml
+lab3/*.class
