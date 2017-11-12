@@ -80,7 +80,8 @@ public class FastFtp {
 			outStream.flush();
 
 			UDPServerPort = inpStream.readInt();
-			System.out.println("server - " + serverName + ": " + UDPServerPort + "\n");
+			System.out.println("TCP Server: " + serverName + ", Port: " + serverPort + "\n");
+			System.out.println("UDP Server: " + serverName + ", Port: " + UDPServerPort + "\n");
 
 			ReceiverThread receiverT = new ReceiverThread(UDPSocket, hostName, UDPServerPort, que, delay);
 			SenderThread senderT = new SenderThread(UDPSocket, hostName, UDPServerPort, que, delay, fileName);

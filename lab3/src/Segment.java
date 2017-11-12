@@ -224,47 +224,4 @@ public class Segment {
 		payload = new byte[bytes.length - HEADER_SIZE];
 		System.arraycopy(bytes, HEADER_SIZE, payload, 0, payload.length);
 	}
-	
-	
-    // A simple test driver
-	public static void main(String[] args) {
-		
-		byte[] payload = new byte[MAX_PAYLOAD_SIZE];
-		
-		Arrays.fill(payload, (byte) 0);
-		payload[0] = 1;
-		payload[MAX_PAYLOAD_SIZE - 1] = 1;
-		
-		// creating a segment with the payload and seqNum 1
-		Segment seg1 = new Segment(1, payload);
-		
-		// display the segment
-		System.out.println("seg1");
-		System.out.println(seg1);
-		System.out.println();
-		
-		// create a default segment
-		Segment seg2 = new Segment();
-		
-		// set header+payload of seg2 equal to header+payload of seg1
-		// essentially creating a copy of seg1
-		seg2.setBytes(seg1.getBytes());
-		
-		// display the segment
-		System.out.println("seg2");
-		System.out.println(seg2);
-		System.out.println();
-		
-		// create a DatagramPacket that can be used to send seg2
-		byte[] data = seg2.getBytes();
-		DatagramPacket pkt = new DatagramPacket(data, data.length);
-		
-		// create a segment based on the paylaod in a received DatagramPacket
-		Segment seg3 = new Segment(pkt);
-		
-		// display the segment
-		System.out.println("seg3");
-		System.out.println(seg3);
-		System.out.println();
-	}
 }
