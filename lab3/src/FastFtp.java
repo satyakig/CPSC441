@@ -1,32 +1,34 @@
 /**
- * FastFtp class
  * @author Satyaki Ghosh
- *         Nov 9 2017
+ * CPSC 441
+ * Assignment 3
+ * T-01
  */
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.Timer;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.net.DatagramSocket;
 import java.io.File;
+import cpsc441.a3.shared.*;
 
 public class FastFtp {
-	private TxQueue que;
 
-	private Socket TCPSocket;
-	private DatagramSocket UDPSocket;
+	private TxQueue que; // holds the Queue
 
-	private String hostName;
-	private int TCPServerPort;
-	private int UDPServerPort;
+	private Socket TCPSocket;		// TCP socket
+	private DatagramSocket UDPSocket;	//UDP socket
+	private int TCPServerPort;	// TCP server port #
+	private int UDPServerPort;	// UDP server port #
+	private InetAddress serverAddress;	// server INETAddress
 
-	private String fileName;
-	private long fileSize;
+	private String fileName;	// filename to transfer
+	private long fileSize;		// size of the file
 
-	private int window;
-	private long delay;
+	private long delay;	// delay for the timeout
+
 
 	/**
      * Constructor to initialize the program
@@ -34,10 +36,12 @@ public class FastFtp {
      * @param rtoTimer		The time-out interval for the retransmission timer
      */
 	public FastFtp(int windowSize, int rtoTimer) {
-		window = windowSize;
+
+		// gets the LONG value of the rtoTimer integer
 		delay = Long.valueOf(rtoTimer);
 
-		que = new TxQueue(window);
+		// creates a que with the window size specified
+		que = new TxQueue(windowSize);
 	}
 	
 
@@ -54,60 +58,78 @@ public class FastFtp {
      */
 	public void send(String serverName, int serverPort, String fileN) {
 
-		hostName = serverName;
+		// reads the arguments of the function and stores them
 		TCPServerPort = serverPort;
 		fileName = fileN;
 
+		// creates a file object from the filename specified
 		File file = new File(fileName);
 
+		// if the file does not exist the program quits
 		if(!file.exists()){
 			System.out.println(fileName + " does not exist!");
 			System.exit(0);
 		}
 
+		// if the file exists, reads the file length
 		this.fileSize = file.length();
 
 		try{
-			TCPSocket = new Socket(hostName, TCPServerPort);
+			// opens a TCP and UDP socket
+			TCPSocket = new Socket(serverName, TCPServerPort);
 			UDPSocket = new DatagramSocket();
 
+			// creates the input and output streams for the TCP socket
 			DataOutputStream outStream = new DataOutputStream(TCPSocket.getOutputStream());
 			DataInputStream inpStream = new DataInputStream(TCPSocket.getInputStream());
 
+			// writes and sends the filename, file size and local UDP port# to the server
 			outStream.writeUTF(fileName);
 			outStream.writeLong(fileSize);
 			outStream.writeInt(UDPSocket.getLocalPort());
 			outStream.flush();
 
+			// reads the UDP port# of the server, that it sends back
 			UDPServerPort = inpStream.readInt();
-			System.out.println("TCP Server: " + serverName + ", Port: " + serverPort + "\n");
+			System.out.println("TCP Server: " + serverName + ", Port: " + serverPort);
 			System.out.println("UDP Server: " + serverName + ", Port: " + UDPServerPort + "\n");
 
-			ReceiverThread receiverT = new ReceiverThread(UDPSocket, hostName, UDPServerPort, que, delay);
-			SenderThread senderT = new SenderThread(UDPSocket, hostName, UDPServerPort, que, delay, fileName);
+			// converts the server hostname to an INETAddress
+			serverAddress = InetAddress.getByName(serverName);
 
-			senderT.setReceiver(receiverT);
-			receiverT.setSender(senderT);
+			// setup the ParentTimer class
+			ParentTimer.setup(que, UDPSocket, serverAddress, UDPServerPort, delay);
 
-			Thread sender = new Thread(senderT);
-			Thread receiver = new Thread(receiverT);
+			// creates a receiver and sender runnable object
+			Sender sender = new Sender(UDPSocket, serverAddress, UDPServerPort, que, fileName);
+			Receiver receiver = new Receiver(UDPSocket, que);
 
-			sender.start();
-			receiver.start();
+			// sends the sender a reference to the receiver object
+			sender.setReceiver(receiver);
 
-			sender.join();
-			receiver.join();
+			// creates two threads with the sender and receiver objects
+			Thread senderT = new Thread(sender);
+			Thread receiverT = new Thread(receiver);
 
+			// starts the two threads
+			senderT.start();
+			receiverT.start();
+
+			// waits for the two threads to finish doing their tasks
+			senderT.join();
+			receiverT.join();
+
+			// after file has been sent and all ACKs have been received, the TCP and UDP sockets are closed
 			TCPSocket.close();
-		}
-		catch(IOException e) {
-			System.out.println(e.getMessage());
+			UDPSocket.close();
+
+		}catch(IOException e) {
+			System.out.println("Socket error. " + e.getMessage());
 			e.printStackTrace();
 			System.exit(0);
 		}catch(InterruptedException e) {
 			System.out.println(e.getMessage());
 			e.printStackTrace();
-			System.exit(0);
 		}
 	}
 	
@@ -120,7 +142,7 @@ public class FastFtp {
 		if (args.length != 5) {
 			System.out.println("incorrect usage, try again.");
 			System.out.println("usage: FastFtp server port file window timeout");
-			System.exit(1);
+			System.exit(0);
 		}
 		
 		// parse the command line arguments
