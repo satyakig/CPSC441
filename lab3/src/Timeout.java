@@ -3,6 +3,7 @@
  * CPSC 441
  * Assignment 3
  * T-01
+ * Timeout.java
  */
 
 import java.io.IOException;
@@ -61,6 +62,7 @@ public class Timeout extends TimerTask {
                 System.out.println("timeout sending seq# " + seg.getSeqNum());
             }
 
+            // start the timer is queue is not empty
             if(!que.isEmpty())
                 ParentTimer.setTimer();
 

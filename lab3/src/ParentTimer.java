@@ -1,6 +1,9 @@
 /**
  * @author Satyaki Ghosh
- *         Nov 13 2017
+ * CPSC 441
+ * Assignment 3
+ * T-01
+ * ParentTimer.java
  */
 
 import cpsc441.a3.shared.TxQueue;
