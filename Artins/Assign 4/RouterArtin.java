@@ -9,6 +9,8 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.*;
 import cpsc441.a4.shared.*;
+import java.io.File;
+import java.io.PrintWriter;
 
 
 /**
@@ -32,7 +34,7 @@ import cpsc441.a4.shared.*;
  * @version	2.1
  *
  */
-public class RouterArtin {
+public class RouterArtin implements  Runnable {
 	
 	
 	private int ID , serverPort, updateInterval;
@@ -44,6 +46,9 @@ public class RouterArtin {
 	public int [][] minCost;
 	public ObjectOutputStream out  = null;
 	public ObjectInputStream in = null;
+
+	public File file;
+	public PrintWriter printer;
 	
     /**
      * Constructor to initialize the router instance 
@@ -58,10 +63,19 @@ public class RouterArtin {
 		this.serverName = serverName;
 		this.serverPort = serverPort;
 		this.updateInterval = updateInterval;
+
+		this.file = new File("Alog" + routerId + ".txt");
+
 	
 	// Creating a TCP connection to the server
 		try {
 			socket = new Socket(serverName, serverPort);
+			printer = new PrintWriter(this.file);
+
+			printer.printf("starting Router #%d with parameters:\n", routerId);
+			printer.printf("Relay server host name: %s\n", serverName);
+			printer.printf("Relay server port number: %d\n", serverPort);
+			printer.printf("Routing update interval: %d (milli-seconds)\n", updateInterval);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -73,7 +87,7 @@ public class RouterArtin {
      * 
      * @return The forwarding table of the router
      */
-	public RtnTable start() {
+	public void run() {
 		
 		RtnTable rtnTbl = null;
 		
@@ -96,10 +110,11 @@ public class RouterArtin {
 		
 	// Wait until the response is Hello
 		Response = (DvrPacket) in.readObject();
+		printer.println(Response.toString());
 		
 	// check to see if Hello message is received
 		if(Response.type != DvrPacket.HELLO)
-			return null;
+			return;
 	
 	// Initialize the linkCost, nextHop, and minCost arrays  get next hop from link cost
 		this.initializeData(Response.getMinCost());
@@ -121,6 +136,7 @@ public class RouterArtin {
 	// Read datagram from other routers
 			try {
 				packet = (DvrPacket) in.readObject();
+				printer.println(packet.toString());
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
@@ -148,8 +164,14 @@ public class RouterArtin {
 	// Create the routing table and return
 		int[] temp = this.getMinCost();
 		rtnTbl = new RtnTable(temp, this.nextHop);
-	
-		return rtnTbl;
+
+		printer.println("Router terminated normally");
+		printer.println();
+		printer.println("Routing Table at Router #" + this.ID);
+		printer.print(rtnTbl.toString());
+
+		printer.close();
+		return;
 	}
 
 	
@@ -309,45 +331,24 @@ public class RouterArtin {
      * 
      */
 	public static void main(String[] args) {
-		// default parameters
-		int routerId = 0;
-		String serverName = "localhost";
-		int serverPort = 2227;
+		String serverName = "192.168.1.71";
+		int serverPort = 8887;
 		int updateInterval = 100; //milli-seconds
-		
-		// the router can be run with:
-		// i. a single argument: router Id
-		// ii. all required arguments
-		if (args.length == 1) {
-			routerId = Integer.parseInt(args[0]);
-		}
-		else if (args.length == 4) {
-			routerId = Integer.parseInt(args[0]);
-			serverName = args[1];
-			serverPort = Integer.parseInt(args[2]);
-			updateInterval = Integer.parseInt(args[3]);
-		}
-		else {
-			System.out.println("incorrect usage, try again.");
-			System.exit(0);
-		}
-			
-		// print the parameters
-		System.out.printf("starting Router #%d with parameters:\n", routerId);
-		System.out.printf("Relay server host name: %s\n", serverName);
-		System.out.printf("Relay server port number: %d\n", serverPort);
-		System.out.printf("Routing update interval: %d (milli-seconds)\n", updateInterval);
-		
-		// start the server
-		// the start() method blocks until the router receives a QUIT message
-		RouterArtin router = new RouterArtin(routerId, serverName, serverPort, updateInterval);
-		RtnTable rtn = router.start();
-		System.out.println("Router terminated normally");
-		
-		// print the computed routing table
-		System.out.println();
-		System.out.println("Routing Table at Router #" + routerId);
-		System.out.print(rtn.toString());
+
+		RouterArtin router0 = new RouterArtin(0, serverName, serverPort, updateInterval);
+		RouterArtin router1 = new RouterArtin(1, serverName, serverPort, updateInterval);
+		RouterArtin router2 = new RouterArtin(2, serverName, serverPort, updateInterval);
+		RouterArtin router3 = new RouterArtin(3, serverName, serverPort, updateInterval);
+
+		Thread zero = new Thread(router0);
+		Thread one = new Thread(router1);
+		Thread two = new Thread(router2);
+		Thread three = new Thread(router3);
+
+		zero.start();
+		one.start();
+		two.start();
+		three.start();
 	}
 
 }
