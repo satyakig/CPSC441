@@ -4,12 +4,9 @@
  * Assignment 4
  * T-01
  * Router.java
-
- * This class can be run as a THREAD as show in in the test driver MAIN method
- * It can also be run as a normal class, using the test driver provided by the prof
-
+ *
  * This class implements the functionality of a router
- * when running the distance vector routing algorithm.
+ * when running a modified distance vector routing algorithm.
  *
  * The operation of the router is as follows:
  * 1. send/receive HELLO message
@@ -21,30 +18,34 @@
 
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Timer;
 import cpsc441.a4.shared.*;
+import sun.net.ConnectionResetException;
 
 
-public class Router implements Runnable {
+public class Router {
 
-	public int id;
-	public String sName;
-	public int sPort;
-	public int interval;
+	public int id;			// ID of the Router
+	public String sName;	// server host name/ip address
+	public int sPort;		// server port number
+	public int interval;	// interval to send out updates
 
-	public ObjectOutputStream out;
-	public ObjectInputStream inp;
-	public Socket socket;
+	public Socket socket;				// TCP socket
+	public ObjectOutputStream out;		// output stream to socket
+	public ObjectInputStream inp;		// input stream to socket
 
-	public int [] linkCost;
-	public int [] nextHop;
-	public int [][] minCost;
-	public ArrayList<Integer> neighbours;
-	public int numRouters;
+	public int [] linkCost;		//link cost array
+	public int [] nextHop;		// next hop array
+	public int [][] minCost;	// min cost array
 
-	public File file;
-	public PrintWriter printer;
+
+	public ArrayList<Integer> neighbours;	// holds the neighbour router IDs of this router
+	public int numRouters;					// number of total routers in the system
+
+	public File file;			// file to log the info in
+	public PrintWriter printer;	// printer to print to file
 
     /**
      * Constructor to initialize the router instance
@@ -54,11 +55,14 @@ public class Router implements Runnable {
      * @param updateInterval	Time interval for sending routing updates to neighboring routers (in milli-seconds)
      */
 	public Router(int routerId, String serverName, int serverPort, int updateInterval) {
+		// saves all the arguments
 		this.id = routerId;
 		this.sName = serverName;
 		this.sPort = serverPort;
 		this.interval = updateInterval;
 
+		// creates a socket and opens streams with the server info provided
+		// opens a file to log all the router information to
 		try {
 			this.socket = new Socket(sName, sPort);
 			this.out = new ObjectOutputStream(socket.getOutputStream());
@@ -70,18 +74,14 @@ public class Router implements Runnable {
 			printer.printf("Starting Router #%d with parameters:\n", routerId);
 			printer.printf("Relay server host name: %s\n", serverName);
 			printer.printf("Relay server port number: %d\n", serverPort);
-			printer.printf("Routing update interval: %d (milli-seconds)\n", updateInterval);
+			printer.printf("Routing update interval: %d (milli-seconds)\n\n", updateInterval);
 		}catch(IOException err) {
 			err.printStackTrace();
 			System.out.println(err.getMessage());
 			System.exit(0);
 		}
 	}
-	
-	@Override
-	public void run() {
-		this.start();
-	}
+
 
     /**
      * starts the router
@@ -90,61 +90,126 @@ public class Router implements Runnable {
 	public RtnTable start() {
 
 		try {
+			// sends the first hello message to the server
 			this.out.writeObject(new DvrPacket(this.id, DvrPacket.SERVER, DvrPacket.HELLO));
 			this.out.flush();
 
+			// receives the hello back from the server
 			DvrPacket shake = (DvrPacket) this.inp.readObject();
 			System.out.println(shake.toString());
 			printer.println(shake.toString());
 
+			// if the received packet does not contain a Hello, the program quits
 			if(shake.type != DvrPacket.HELLO) {
 				System.out.println("Handshake incomplete!");
 				printer.println("Handshake incomplete!");
 				return null;
 			}
 			else
-				this.server(shake);
+				this.server(shake); // initializes the the min cost, next hop, link cost vectors
 
+			// starts a timer that goes off after the period specified over and over
+			// no need to cancel or restart the timer until the program is over
 			Timer timer = new Timer(true);
 			timer.scheduleAtFixedRate(new Timeout(this), (long) this.interval, (long) this.interval);
 
-			int num = 1;
 			while(true) {
+				// keeps receiving packets from the server until it says to QUIT
 				DvrPacket rec = (DvrPacket) this.inp.readObject();
 
+				// if the packet says the quit then the while loop stops
 				if(rec.type == DvrPacket.QUIT)
 					break;
-				this.processDvr(rec, num);
-				num++;
+				// if packet does not contain QUIT, then we process the packet
+				else
+					this.processDvr(rec);
 			}
 
+			// cancel the timer after server has QUIT
 			if(timer != null)
 				timer.cancel();
 
+			// close all the TCP sockets and streams
 			this.inp.close();
 			this.out.close();
 			this.socket.close();
+		}catch(SocketTimeoutException err) {
+			// if the Socket times out, closes all the streams, socket and cleans up
+			System.out.println(err.getMessage());
+
+			try {
+				this.inp.close();
+				this.out.close();
+				this.socket.close();
+
+				System.out.println("Router terminated with a Socket Timeout!");
+				this.printer.println("Router terminated with a Socket Timeout!");
+				this.printer.println();
+				this.printAllTables();
+				this.printer.println("Routing Table at Router #" + this.id);
+				RtnTable table1 = new RtnTable(this.minCost[this.id], this.nextHop);
+				this.printer.print(table1.toString());
+				this.printer.close();
+				return table1;
+			}catch(Exception e) {}
+			System.exit(0);
+
+		}catch(ConnectionResetException err) {
+			// if the Socket times out, closes all the streams, socket and cleans up
+			System.out.println(err.getMessage());
+			try {
+				this.inp.close();
+				this.out.close();
+				this.socket.close();
+
+				System.out.println("Router terminated with a Connection Reset!");
+				this.printer.println("Router terminated with a Connection Reset!");
+				this.printer.println();
+				this.printAllTables();
+				this.printer.println("Routing Table at Router #" + this.id);
+				RtnTable table1 = new RtnTable(this.minCost[this.id], this.nextHop);
+				this.printer.print(table1.toString());
+				this.printer.close();
+				return table1;
+			}catch(Exception e) {}
+			System.exit(0);
 		}catch(Exception err) {
 			System.out.println(err.getMessage());
 			err.printStackTrace();
 		}
 
-		RtnTable table = new RtnTable(this.minCost[this.id], this.nextHop);
+		// create the RtnTable with the minCost and nextHop
+		RtnTable table2 = new RtnTable(this.minCost[this.id], this.nextHop);
+
+		// prints the info to the logging file
 		this.printer.println("Router terminated normally");
 		this.printer.println();
+		this.printAllTables();
 		this.printer.println("Routing Table at Router #" + this.id);
-		this.printer.print(table.toString());
+		this.printer.print(table2.toString());
 		this.printer.close();
 
-		return table;
+		// returns the table
+		return table2;
 	}
 
-	private void processDvr(DvrPacket dvr, int num) {
+
+	/**
+	 * processes the packet received from the server
+	 * @param dvr received packet from the server
+	 */
+	private void processDvr(DvrPacket dvr) {
+
+		// if the packet sourceID is from the server, then it calls the method for processing packets from the server
+		// this is a link cost change message
 		if(dvr.sourceid == DvrPacket.SERVER) {
 			this.printer.println("Link cost changed: " + dvr.toString());
 			System.out.println("Link cost changed: " + dvr.toString());
 			this.server(dvr);
 		}
+
+		// else it calls the method for processing packets from neighbours
+		// this is a regular routing update from a neighbour
 		else {
 			this.printer.println(dvr.toString());
 			System.out.println(dvr.toString());
@@ -152,18 +217,26 @@ public class Router implements Runnable {
 		}
 	}
 
+	/**
+	 * updates linkCost, minCost, nextHop, neighbour vectors
+	 * @param rcv received packet from the server
+	 */
 	private void server(DvrPacket rcv) {
+		// makes new arrays to hold the info, deletes the old values
 		this.numRouters = rcv.getMinCost().length;
 		this.linkCost = rcv.getMinCost();
 		this.nextHop = new int [rcv.getMinCost().length];
 		this.minCost = new int [rcv.getMinCost().length] [rcv.getMinCost().length];
 		this.neighbours = new ArrayList<>();
 
+		// adds neighbours of this router to the neighbours vector
 		for(int i = 0; i < this.numRouters; i++) {
 			if(this.linkCost[i] != DvrPacket.INFINITY && this.linkCost[i] != 0)
 				this.neighbours.add(i);
 		}
 
+		// initializes the minCost[this.id] array with the link cost values
+		// initializes the rest of the array with infinity
 		for(int i = 0; i < this.numRouters; i++) {
 			for(int j = 0; j < this.numRouters; j++) {
 				if(i == this.id)
@@ -173,6 +246,7 @@ public class Router implements Runnable {
 			}
 		}
 
+		// initializes the nextHop vector with the neighbour routerIDs
 		for(int i = 0; i < this.numRouters; i++){
 			if(this.linkCost[i] != DvrPacket.INFINITY)
 				this.nextHop[i] = i;
@@ -181,13 +255,18 @@ public class Router implements Runnable {
 		}
 	}
 
+	/**
+	 * updates linkCost, minCost, nextHop, neighbour vectors
+	 * @param rcv received packet from the server
+	 */
 	private void neighbour(DvrPacket rcv) {
+		// copy the received min cost vector into the current min cost vector for that router
 		int [] tmpMinCost = rcv.getMinCost();
-
 		for(int i = 0; i < this.numRouters; i++)
 			this.minCost[rcv.sourceid][i] = tmpMinCost[i];
 
-		for(int i = 0; i < this.numRouters; i++){
+		// compute the new min cost based on this information
+		for(int i = 0; i < this.numRouters; i++) {
 			if(i != this.id)
 				this.minCost[this.id][i] = findDistance(i);
 			else
@@ -195,111 +274,106 @@ public class Router implements Runnable {
 		}
 	}
 
+	/**
+	 * @param x ID of router to calculate the smallest distance to
+	 * @return smallest distance from this router to the router with ID = x
+	 */
 	private int findDistance(int x) {
-		ArrayList<Integer> results = new ArrayList<Integer>();
-		ArrayList<Integer> routerIDs = new ArrayList<Integer>();
+		ArrayList<Integer> res = new ArrayList<Integer>();
+		ArrayList<Integer> rout = new ArrayList<Integer>();
 
 		int temp = this.minCost[this.id][x];
-		results.add(temp);
+		res.add(temp);
 
 		if(this.neighbours.contains(x))
-			routerIDs.add(x);
+			rout.add(x);
 		else
-			routerIDs.add(-999);
+			rout.add(-999);
 
 		for(int i = 0; i < this.neighbours.size(); i++){
 			if(this.neighbours.get(i) != x){
 				int neighbor = this.neighbours.get(i);
 				temp = minCost[this.id][neighbor]+ minCost[neighbor][x];
-				results.add(temp);				routerIDs.add(neighbor);
+				res.add(temp);
+				rout.add(neighbor);
 			}
 		}
 
-		int smallest = results.get(0);
+		int dist = res.get(0);
 		int nextHop = -999;
-		for(int i = 1; i < results.size(); i++){
-			if(smallest > results.get(i)){
-				smallest = results.get(i);
-				nextHop = routerIDs.get(i);
+		for(int i = 1; i < res.size(); i++) {
+			if(dist > res.get(i)) {
+				dist = res.get(i);
+				nextHop = rout.get(i);
 			}
 		}
 
-		if(smallest < DvrPacket.INFINITY && nextHop != -999)
+		if(dist < DvrPacket.INFINITY && nextHop != -999)
 			this.nextHop[x] = nextHop;
 
-		return smallest;
+		// returns the smallest calculated distance
+		return dist;
 	}
 
+
+	// prints all the tables i.e the linkCost, nextHop and neighbours
 	private void printAllTables() {
-		System.out.println("Link Cost");
+
+		this.printer.println(this.numRouters + " routers in this system.\n");
+		this.printer.println("Link Cost at Router #" + this.id);
 		for(int i = 0; i < this.numRouters; i++) {
-			System.out.print(this.linkCost[i] + "  ");
+			this.printer.print("R" + i + ": " + this.linkCost[i] + "    ");
 		}
-		System.out.println("\n\n");
+		this.printer.println("\n");
 
-
-		System.out.println("Next Hop");
+		this.printer.println("Next Hop at Router #" + this.id);
 		for(int i = 0; i < this.nextHop.length; i++) {
-			System.out.print(this.nextHop[i] + "  ");
+			this.printer.print("R" + i + ": " + this.nextHop[i] + "    ");
 		}
-		System.out.println("\n\n");
+		this.printer.println("\n");
 
-
-		System.out.println("Min Cost");
-		for(int i = 0; i < this.minCost.length; i++) {
-			for(int j = 0; j < this.minCost[i].length; j++) {
-				System.out.print(this.minCost[i][j] + "  ");
-			}
-			System.out.println();
-		}
-		System.out.println("\n\n");
-
-		System.out.println("Neighbours");
+		this.printer.println("Neighbours at Router #" + this.id);
 		for(int i = 0; i < this.neighbours.size(); i++)
-			System.out.println(this.neighbours.get(i) + "  ");
-		System.out.println("\n\n");
+			this.printer.print("R" + this.neighbours.get(i) + "    ");
+		this.printer.println("\n\n");
 	}
 
 	public static void main(String[] args) {
 
-//		default parameters
+		// default parameters
 		int routerId = 0;
 		String serverName = "192.168.1.71";
 		int serverPort = 8887;
 		int updateInterval = 1000; //milli-seconds
 		
-//		if (args.length == 4) {
-//			routerId = Integer.parseInt(args[0]);
-//			serverName = args[1];
-//			serverPort = Integer.parseInt(args[2]);
-//			updateInterval = Integer.parseInt(args[3]);
-//		} else {
-//			System.out.println("incorrect usage, try again.");
-//			System.exit(0);
-//		}
-			
-//		print the parameters
-//		System.out.printf("Starting Router #%d with parameters:\n", routerId);
-//		System.out.printf("Relay server host name: %s\n", serverName);
-//		System.out.printf("Relay server port number: %d\n", serverPort);
-//		System.out.printf("Routing update interval: %d (milli-seconds)\n", updateInterval);
-		
-//		start the router
-//		the start() method blocks until the router receives a QUIT message
-//		Router router = new Router(routerId, serverName, serverPort, updateInterval);
-//		RtnTable rtn = router.start();
-//		System.out.println("Router terminated normally");
-
-//		print the computed routing table
-//		System.out.println();
-//		System.out.println("Routing Table at Router #" + routerId);
-//		System.out.print(rtn.toString());
-
-
-		for(int i = 0; i < 4; i++) {
-			Router router = new Router(i, serverName, serverPort, updateInterval);
-			Thread thread = new Thread(router);
-			thread.start();
+		if (args.length == 4) {
+			routerId = Integer.parseInt(args[0]);
+			serverName = args[1];
+			serverPort = Integer.parseInt(args[2]);
+			updateInterval = Integer.parseInt(args[3]);
+		} else {
+			System.out.println("incorrect usage, try again.");
+			System.exit(0);
 		}
+			
+		// print the parameters
+		System.out.printf("Starting Router #%d with parameters:\n", routerId);
+		System.out.printf("Relay server host name: %s\n", serverName);
+		System.out.printf("Relay server port number: %d\n", serverPort);
+		System.out.printf("Routing update interval: %d (milli-seconds)\n\n", updateInterval);
+		
+		// start the router
+		// the start() method blocks until the router receives a QUIT message
+		Router router = new Router(routerId, serverName, serverPort, updateInterval);
+		RtnTable rtn = router.start();
+		if(rtn != null)
+			System.out.println("Router terminated normally");
+
+		// print the computed routing table
+		System.out.println();
+		System.out.println("Routing Table at Router #" + routerId);
+
+		if(rtn != null)
+			System.out.print(rtn.toString());
 	}
 }

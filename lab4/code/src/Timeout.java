@@ -15,14 +15,22 @@ import cpsc441.a4.shared.*;
 public class Timeout extends TimerTask {
    private Router router;
 
+    /**
+     * Constructor to initialize the Timeout instance
+     * @param r	Router for the timer
+     */
    public Timeout(Router r) {
        router = r;
    }
 
+
+   // sends all the neighbours of the router a copy of this Router's min cost vector
    @Override
    public void run() {
+       // gets the min cost vector of the Router
        int[] min = Arrays.copyOf(router.minCost[router.id], router.minCost[router.id].length);
 
+        // sends all the neighbouring routers the min cost vector
        for(int i = 0; i < router.neighbours.size(); i++) {
            DvrPacket pac = new DvrPacket(router.id, router.neighbours.get(i), DvrPacket.ROUTE, min);
            try {
