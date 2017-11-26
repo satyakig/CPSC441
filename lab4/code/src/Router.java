@@ -21,8 +21,8 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Timer;
+import java.net.SocketException;
 import cpsc441.a4.shared.*;
-import sun.net.ConnectionResetException;
 
 
 public class Router {
@@ -134,16 +134,15 @@ public class Router {
 			this.out.close();
 			this.socket.close();
 		}catch(SocketTimeoutException err) {
-			// if the Socket times out, closes all the streams, socket and cleans up
-			System.out.println(err.getMessage());
+			// if the socket times out, closes all the streams, socket and cleans up
+			System.out.println("Router terminated with a " + err.getMessage());
 
 			try {
 				this.inp.close();
 				this.out.close();
 				this.socket.close();
 
-				System.out.println("Router terminated with a Socket Timeout!");
-				this.printer.println("Router terminated with a Socket Timeout!");
+				this.printer.println("Router terminated with a " + err.getMessage());
 				this.printer.println();
 				this.printAllTables();
 				this.printer.println("Routing Table at Router #" + this.id);
@@ -154,16 +153,15 @@ public class Router {
 			}catch(Exception e) {}
 			System.exit(0);
 
-		}catch(ConnectionResetException err) {
-			// if the Socket times out, closes all the streams, socket and cleans up
-			System.out.println(err.getMessage());
+		}catch(SocketException err) {
+			// if there are other socket exceptions, closes all the streams, socket and cleans up
+			System.out.println("Router terminated with a " + err.getMessage());
 			try {
 				this.inp.close();
 				this.out.close();
 				this.socket.close();
 
-				System.out.println("Router terminated with a Connection Reset!");
-				this.printer.println("Router terminated with a Connection Reset!");
+				this.printer.println("Router terminated with a " + err.getMessage());
 				this.printer.println();
 				this.printAllTables();
 				this.printer.println("Routing Table at Router #" + this.id);
