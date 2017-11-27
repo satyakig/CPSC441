@@ -28,11 +28,11 @@ public class Timeout extends TimerTask {
    @Override
    public void run() {
        // gets the min cost vector of the Router
-       int[] min = Arrays.copyOf(router.minCost[router.id], router.minCost[router.id].length);
+       int[] min = router.getMinCost();
 
         // sends all the neighbouring routers the min cost vector
-       for(int i = 0; i < router.neighbours.size(); i++) {
-           DvrPacket pac = new DvrPacket(router.id, router.neighbours.get(i), DvrPacket.ROUTE, min);
+       for(int i = 0; i < router.getNeighbours().size(); i++) {
+           DvrPacket pac = new DvrPacket(router.getID(), router.getNeighbours().get(i), DvrPacket.ROUTE, min);
            try {
                router.out.writeObject(pac);
                router.out.flush();
