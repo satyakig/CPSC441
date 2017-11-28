@@ -17,7 +17,6 @@
  */
 
 import java.io.*;
-import java.lang.reflect.Array;
 import java.net.*;
 import java.util.*;
 import cpsc441.a4.shared.*;
@@ -34,19 +33,18 @@ public class Router {
 	public ObjectOutputStream out;		// output stream to socket
 	private ObjectInputStream inp;		// input stream to socket
 
-	private int [] linkCost;		//link cost array
+	private int [] linkCost;	//link cost array
 	private int [] nextHop;		// next hop array
 	private int [][] minCost;	// min cost array
-
-
+	private int numRouters;		// number of total routers in the system
 	private ArrayList<Integer> neighbours;	// holds the neighbour router IDs of this router
-	private int numRouters;					// number of total routers in the system
 
 	private File file;			// file to log the info in
 	private PrintWriter printer;	// printer to print to file
 
 	/**
 	 * Constructor to initialize the router instance
+	 * Opens the TCP connection with the server and
 	 * @param routerId			Unique ID of the router starting at 0
 	 * @param serverName		Name of the host running the network server
 	 * @param serverPort		TCP port number of the network server
@@ -74,31 +72,26 @@ public class Router {
 			printer.printf("Relay server port number: %d\n", serverPort);
 			printer.printf("Routing update interval: %d (milli-seconds)\n\n", updateInterval);
 
-			try {
-				// sends the first hello message to the server
-				this.out.writeObject(new DvrPacket(this.id, DvrPacket.SERVER, DvrPacket.HELLO));
-				this.out.flush();
+			// sends the first hello message to the server
+			this.out.writeObject(new DvrPacket(this.id, DvrPacket.SERVER, DvrPacket.HELLO));
+			this.out.flush();
 
-				// receives the hello back from the server
-				DvrPacket shake = (DvrPacket) this.inp.readObject();
-				System.out.println(shake.toString());
-				printer.println(shake.toString());
+			// receives the hello back from the server
+			DvrPacket shake = (DvrPacket) this.inp.readObject();
+			System.out.println(shake.toString());
+			printer.println(shake.toString());
 
-				// if the received packet does not contain a Hello, the program quits
-				if(shake.type != DvrPacket.HELLO) {
-					this.error("Handshake incomplete! Server did NOT send HELLO.");
-					System.exit(0);
-				}
-				else
-					this.server(shake); // initializes the the min cost, next hop, link cost vectors
-			}catch(Exception err) {
-				this.error(err.getMessage());
-				err.printStackTrace();
+			// if the received packet does not contain a Hello, the program quits
+			if(shake.type != DvrPacket.HELLO) {
+				this.error("Handshake incomplete! Server did NOT send HELLO.");
 				System.exit(0);
 			}
-		}catch(IOException err) {
+			// initializes the the min cost, next hop, link cost vectors if packet contains HELLO
+			else
+				this.server(shake);
+
+		}catch(Exception err) {
 			this.error(err.getMessage());
-			err.printStackTrace();
 			System.exit(0);
 		}
 	}
@@ -123,13 +116,12 @@ public class Router {
 				// if the packet says quit, then the while loop stops
 				if(rec.type == DvrPacket.QUIT)
 					break;
-					// if packet does not contain QUIT, we process the packet
+				// if packet does not contain QUIT, we process the packet
 				else
 					this.processDvr(rec);
 			}catch(Exception err) {
-				// if the socket times out, closes all the streams, socket and cleans up
+				// if there are any errors with the socket, closes all the streams, socket and cleans up
 				this.error(err.getMessage());
-				err.printStackTrace();
 				System.exit(0);
 			}
 		}
@@ -138,14 +130,13 @@ public class Router {
 		if(timer != null)
 			timer.cancel();
 
-		// close all the TCP sockets and streams
+		// close all the TCP sockets, streams and cleans up
+		// router terminated normally
 		try {
 			this.inp.close();
 			this.out.close();
 			this.socket.close();
-		}catch(Exception err) {
-			err.printStackTrace();
-		}
+		}catch(Exception err) { }
 
 		// create the RtnTable with the minCost and nextHop
 		RtnTable table = new RtnTable(this.minCost[this.id], this.nextHop);
@@ -191,7 +182,7 @@ public class Router {
 
 	/**
 	 * processes the link cost changes sent by the server
-	 * updates linkCost, minCost, nextHop, neighbour vectors
+	 * resets linkCost, minCost, nextHop and neighbours vectors
 	 * @param rcv received packet from the server
 	 */
 	private void server(DvrPacket rcv) {
@@ -251,44 +242,47 @@ public class Router {
 
 	/**
 	 * @param routTo ID of router to calculate the smallest distance to
-	 * @return smallest distance from this router to the router with ID = x
+	 * @return smallest distance from this router to the router with ID = routTo
 	 */
 	private synchronized int findDistance(int routTo) {
 		int curDist = this.minCost[this.id][routTo];
 		int hopTo = -999;
-		int smallestDist = DvrPacket.INFINITY;
+		int distanceCalc = DvrPacket.INFINITY;
 
 
+		// finds the distance to router with ID: routTo using the neighbour routers as a middle man
 		for(int i = 0; i < this.neighbours.size(); i++) {
-			int neighbour = this.neighbours.get(i);
-			int dist = this.linkCost[neighbour] + this.minCost[neighbour][routTo];
-
-			if(dist < curDist) {
-				hopTo = neighbour;
-				smallestDist = dist;
+			int n = this.neighbours.get(i);
+			int d = this.linkCost[n] + this.minCost[n][routTo];
+			if(d < curDist) {
+				hopTo = n;
+				distanceCalc = d;
 			}
 		}
 
-		if(hopTo == -999 || smallestDist == DvrPacket.INFINITY)
+		// if the distance calculated is NOT less than the current distance, then return the current distance
+		if(hopTo == -999 || distanceCalc == DvrPacket.INFINITY)
 			return curDist;
 
+		// if the distance calculated is less than the current distance, then return the distance calculated
+		// update the nextHop vector with the router to hop to
 		this.nextHop[routTo] = hopTo;
-		return smallestDist;
+		return distanceCalc;
 	}
 
 	// prints all the tables i.e the linkCost, nextHop and neighbours to a file
 	private void printAllTables() {
 
-		this.printer.println(this.numRouters + " routers in this system.\n");
+		this.printer.println(this.numRouters + " routers in the system.\n");
 		this.printer.println("Link Cost Table of Router #" + this.id);
 		for(int i = 0; i < this.numRouters; i++) {
-			this.printer.print("R" + i + ": " + this.linkCost[i] + "    ");
+			this.printer.print(this.linkCost[i] + "    ");
 		}
 		this.printer.println("\n");
 
 		this.printer.println("Next Hop Table of Router #" + this.id);
 		for(int i = 0; i < this.numRouters; i++) {
-			this.printer.print("R" + i + ": " + this.nextHop[i] + "    ");
+			this.printer.print(this.nextHop[i] + "    ");
 		}
 		this.printer.println("\n");
 
@@ -330,34 +324,33 @@ public class Router {
 			out.close();
 			socket.close();
 			printer.close();
-		}catch(Exception err) {
-			err.printStackTrace();
-		}
+		}catch(Exception err) { }
 	}
 
 
+	// simple test driver
 	public static void main(String[] args) {
 
 		// default parameters
-		int routerId = 1;
+		int routerId = 2;
 		String serverName = "localhost";
 		int serverPort = 8887;
 		int updateInterval = 1000; //milli-seconds
 
-//		if (args.length == 4) {
-//			try {
-//				routerId = Integer.parseInt(args[0]);
-//				serverName = args[1];
-//				serverPort = Integer.parseInt(args[2]);
-//				updateInterval = Integer.parseInt(args[3]);
-//			}catch(Exception err){
-//				System.out.println(err.getMessage());
-//				System.exit(0);
-//			}
-//		} else {
-//			System.out.println("incorrect usage, try again.");
-//
-//		}
+		if (args.length == 4) {
+			try {
+				routerId = Integer.parseInt(args[0]);
+				serverName = args[1];
+				serverPort = Integer.parseInt(args[2]);
+				updateInterval = Integer.parseInt(args[3]);
+			}catch(Exception err){
+				System.out.println(err.getMessage());
+				System.exit(0);
+			}
+		} else {
+			System.out.println("Incorrect usage, try again. Need 4 arguments to run Router.");
+			System.exit(0);
+		}
 
 		// print the parameters
 		System.out.printf("Starting Router #%d with parameters:\n", routerId);
